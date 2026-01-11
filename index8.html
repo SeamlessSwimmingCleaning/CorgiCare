@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Corgi Life</title>
+    <style>
+        /* Retro Cozy Colors */
+        :root {
+            --bg: #fdf6e3;
+            --border: #5d4037;
+            --panel: #ffffff;
+            --accent: #d33682;
+        }
+
+        body { 
+            background: var(--bg); 
+            font-family: "Courier New", Courier, monospace;
+            margin: 0; padding: 0;
+            display: flex; justify-content: center;
+        }
+
+        #device {
+            width: 100vw; max-width: 375px; height: 100vh;
+            background: var(--panel);
+            border: 4px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow: hidden; position: relative;
+        }
+
+        header {
+            background: var(--border); color: white;
+            padding: 10px; display: flex; justify-content: space-between;
+            font-size: 14px;
+        }
+
+        /* LAYERED SPRITE SYSTEM */
+        #world {
+            height: 250px; background: #eee8d5;
+            border-bottom: 4px solid var(--border);
+            position: relative; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* This container moves the corgi and all his clothes together */
+        .sprite-stack {
+            position: relative;
+            width: 120px; height: 120px;
+            transition: transform 1.5s ease-in-out, opacity 1s;
+        }
+
+        .pixel-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            image-rendering: pixelated; /* Keeps your art sharp! */
+        }
+
+        .walking { animation: bob 0.6s infinite; }
+        @keyframes bob { 0%, 100% { top: 0; } 50% { top: -8px; } }
+        .away { transform: translateX(300px); opacity: 0; }
+
+        /* UI Elements */
+        .page { display: none; flex: 1; padding: 15px; overflow-y: auto; }
+        .page.active { display: block; }
+
+        nav { display: flex; height: 70px; border-top: 4px solid var(--border); background: #fff; }
+        .tab-btn { flex: 1; border: none; background: none; font-weight: bold; font-family: inherit; font-size: 12px; }
+        .tab-btn.active { background: #eee; border-bottom: 4px solid var(--accent); }
+
+        .btn {
+            width: 100%; padding: 12px; margin: 5px 0;
+            background: #fff; border: 3px solid var(--border);
+            font-family: inherit; font-weight: bold; cursor: pointer;
+            box-shadow: 4px 4px 0 var(--border);
+        }
+        .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--border); }
+        .owned { background: #859900 !important; color: white; }
+
+        .item-card {
+            border: 2px solid var(--border); padding: 10px;
+            margin-bottom: 10px; text-align: center;
+            background: #f9f9f9;
+        }
+
+        .goal-item {
+            background: #fff; border: 2px solid var(--border);
+            padding: 10px; margin-bottom: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="device">
+    <header>
+        <span>Lvl <span id="lvl-txt">1</span> Corgi</span>
+        <span>🦴 <span id="bone-txt">0</span></span>
+    </header>
+
+    <div id="page-home" class="page active">
+        <div id="world">
+            <div id="sprite-group" class="sprite-stack">
+                <img id="img-base" src="corgi.png" class="pixel-layer">
+                <img id="img-hat" src="" class="pixel-layer" style="display:none;">
+            </div>
+            <div id="timer-box" style="display:none; position:absolute; bottom:10px; background:white; padding:5px; border:2px solid var(--border);">
+                Exploring... <span id="timer-txt">00:30</span>
+            </div>
+        </div>
+        
+        <div style="height:20px; background:#ddd; border:2px solid var(--border); margin:10px 0;">
+            <div id="energy-bar" style="width:0%; height:100%; background:#2aa198;"></div>
+        </div>
+        <button class="btn" onclick="goAdventure()">ADVENTURE (Needs 100 Energy)</button>
+    </div>
+
+    <div id="page-goals" class="page">
+        <h3>Daily Goals</h3>
+        <div id="goal-list"></div>
+        <input type="text" id="goal-in" placeholder="Ex: Drink water" style="width:70%; padding:8px;">
+        <button onclick="addGoal()" class="btn" style="width:25%; display:inline; padding:8px;">Add</button>
+    </div>
+
+    <div id="page-shop" class="page">
+        <h3>Closet & Shop</h3>
+        <div id="shop-list"></div>
+    </div>
+
+    <nav>
+        <button class="tab-btn active" onclick="showTab('home', this)">HOME</button>
+        <button class="tab-btn" onclick="showTab('goals', this)">GOALS</button>
+        <button class="tab-btn" onclick="showTab('shop', this)">SHOP</button>
+    </nav>
+</div>
+
+<script>
+    // --- GAME DATA ---
+    var data = {
+        bones: 20, energy: 0, lvl: 1,
+        ownedItems: [], equippedHat: null,
+        goals: [{id:1, text:"Brush Teeth"}],
+        isAway: false, returnTime: 0
+    };
+
+    // --- YOUR CLOTHES LIST ---
+    // Change 'hat.png' to the actual name of your clothing files!
+    var shopItems = [
+        {id: 'cool_hat', name: 'Red Hat', price: 15, file: 'hat.png'},
+        {id: 'fancy_crown', name: 'Gold Crown', price: 50, file: 'crown.png'}
+    ];
+
+    // --- NAVIGATION ---
+    function showTab(name, btn) {
+        var pages = document.getElementsByClassName('page');
+        for(var i=0; i<pages.length; i++) pages[i].className = 'page';
+        var btns = document.getElementsByClassName('tab-btn');
+        for(var i=0; i<btns.length; i++) btns[i].className = 'tab-btn';
+        
+        document.getElementById('page-'+name).className = 'page active';
+        btn.className = 'tab-btn active';
+    }
+
+    // --- GOAL LOGIC ---
+    function addGoal() {
+        var input = document.getElementById('goal-in');
+        if(!input.value) return;
+        data.goals.push({id: Date.now(), text: input.value});
+        input.value = "";
+        renderGoals();
+        save();
+    }
+
+    function completeGoal(id) {
+        data.goals = data.goals.filter(function(g){ return g.id !== id; });
+        data.energy = Math.min(data.energy + 25, 100);
+        data.bones += 10;
+        updateUI();
+        renderGoals();
+    }
+
+    // --- SHOP & CLOSET LOGIC ---
+    function handleItem(id) {
+        var item = shopItems.filter(function(i){ return i.id === id; })[0];
+        var ownedIdx = data.ownedItems.indexOf(id);
+
+        if(ownedIdx === -1) { // Buy
+            if(data.bones >= item.price) {
+                data.bones -= item.price;
+                data.ownedItems.push(id);
+            } else { alert("Not enough bones!"); }
+        } else { // Toggle Equip
+            data.equippedHat = (data.equippedHat === item.file) ? null : item.file;
+        }
+        updateUI();
+        renderShop();
+    }
+
+    // --- ADVENTURE LOGIC ---
+    function goAdventure() {
+        if(data.energy < 100 || data.isAway) return alert("Complete more goals!");
+        data.isAway = true;
+        data.energy = 0;
+        data.returnTime = Date.now() + (30 * 1000); // 30 seconds
+        
+        document.getElementById('sprite-group').className = 'sprite-stack away walking';
+        document.getElementById('timer-box').style.display = 'block';
+        updateUI();
+    }
+
+    // --- CORE UPDATES ---
+    function updateUI() {
+        document.getElementById('bone-txt').innerText = data.bones;
+        document.getElementById('lvl-txt').innerText = data.lvl;
+        document.getElementById('energy-bar').style.width = data.energy + "%";
+        
+        var hatLayer = document.getElementById('img-hat');
+        if(data.equippedHat) {
+            hatLayer.src = data.equippedHat;
+            hatLayer.style.display = 'block';
+        } else {
+            hatLayer.style.display = 'none';
+        }
+        save();
+    }
+
+    function renderGoals() {
+        var list = document.getElementById('goal-list');
+        list.innerHTML = "";
+        data.goals.forEach(function(g) {
+            var div = document.createElement('div');
+            div.className = "goal-item";
+            div.innerHTML = '<span>'+g.text+'</span><button onclick="completeGoal('+g.id+')" style="padding:5px;">✅</button>';
+            list.appendChild(div);
+        });
+    }
+
+    function renderShop() {
+        var list = document.getElementById('shop-list');
+        list.innerHTML = "";
+        shopItems.forEach(function(item) {
+            var isOwned = data.ownedItems.indexOf(item.id) !== -1;
+            var isEquipped = data.equippedHat === item.file;
+            var txt = isOwned ? (isEquipped ? "Unequip" : "Equip") : "Buy ("+item.price+"🦴)";
+            
+            var div = document.createElement('div');
+            div.className = "item-card";
+            div.innerHTML = '<b>'+item.name+'</b><br><button class="btn '+(isOwned?'owned':'')+'" onclick="handleItem(\''+item.id+'\')">'+txt+'</button>';
+            list.appendChild(div);
+        });
+    }
+
+    // --- TIMER LOOP ---
+    setInterval(function() {
+        if(data.isAway) {
+            var diff = Math.round((data.returnTime - Date.now()) / 1000);
+            if(diff <= 0) {
+                data.isAway = false;
+                data.lvl++;
+                document.getElementById('sprite-group').className = 'sprite-stack';
+                document.getElementById('timer-box').style.display = 'none';
+                alert("Your Corgi is back from the adventure!");
+                updateUI();
+            } else {
+                document.getElementById('timer-txt').innerText = "00:" + (diff < 10 ? "0" : "") + diff;
+            }
+        }
+    }, 1000);
+
+    function save() { localStorage.setItem('corgiStore', JSON.stringify(data)); }
+    function load() {
+        var saved = localStorage.getItem('corgiStore');
+        if(saved) data = JSON.parse(saved);
+        if(data.isAway) { // Reset if they refreshed during adventure
+            data.isAway = false;
+            document.getElementById('sprite-group').className = 'sprite-stack';
+        }
+        updateUI(); renderGoals(); renderShop();
+    }
+
+    window.onload = load;
+</script>
+</body>
+</html>
