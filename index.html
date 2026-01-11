@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Corgi Life</title>
     <style>
-        /* Retro Cozy Colors */
         :root {
             --bg: #fdf6e3;
             --border: #5d4037;
@@ -34,7 +33,6 @@
             font-size: 14px;
         }
 
-        /* LAYERED SPRITE SYSTEM */
         #world {
             height: 250px; background: #eee8d5;
             border-bottom: 4px solid var(--border);
@@ -42,7 +40,6 @@
             display: flex; align-items: center; justify-content: center;
         }
 
-        /* This container moves the corgi and all his clothes together */
         .sprite-stack {
             position: relative;
             width: 120px; height: 120px;
@@ -53,14 +50,13 @@
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            image-rendering: pixelated; /* Keeps your art sharp! */
+            image-rendering: pixelated;
         }
 
         .walking { animation: bob 0.6s infinite; }
-        @keyframes bob { 0%, 100% { top: 0; } 50% { top: -8px; } }
+        @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
         .away { transform: translateX(300px); opacity: 0; }
 
-        /* UI Elements */
         .page { display: none; flex: 1; padding: 15px; overflow-y: auto; }
         .page.active { display: block; }
 
@@ -102,6 +98,7 @@
         <div id="world">
             <div id="sprite-group" class="sprite-stack">
                 <img id="img-base" src="pixel-frame-0-2.png" class="pixel-layer">
+                <img id="img-body" src="" class="pixel-layer" style="display:none;">
                 <img id="img-hat" src="" class="pixel-layer" style="display:none;">
             </div>
             <div id="timer-box" style="display:none; position:absolute; bottom:10px; background:white; padding:5px; border:2px solid var(--border);">
@@ -135,37 +132,32 @@
 </div>
 
 <script>
-    // --- GAME DATA ---
     var data = {
         bones: 20, energy: 0, lvl: 1,
-        ownedItems: [], equippedHat: null,
+        ownedItems: [], equippedHat: null, equippedBody: null,
         goals: [{id:1, text:"Brush Teeth"}],
         isAway: false, returnTime: 0
     };
 
-    // --- YOUR CLOTHES LIST ---
-    
+    // FIXED: Added missing commas and "type" category
     var shopItems = [
-        {id: 'cool_hat', name: 'Top Hatt', price: 15, file: 'pixel-frame-0-3.png'},
-        {id: 'fancy_crown', name: 'Bee Hat', price: 50, file: 'pixel-frame-0-4.png'}
-        {id: 'blue_pants', name: 'Cool Jeans', price: 30, file: 'pixel-frame-0-5.png'}
-        {id: 'pink_skirt', name: 'Pink Skirt', price: 30, file: 'pixel-frame-0-6.png'}
-        {id: 'sweater', name: 'Purple Sweater', price: 45, file: 'pixel-frame-0-7.png'}
-        {id: 'green_scarf', name: 'Mint Scarf', price: 25, file: 'pixel-frame-0-8.png'}
+        {id: 'cool_hat', name: 'Top Hat', price: 15, file: 'pixel-frame-0-3.png', type: 'hat'},
+        {id: 'fancy_crown', name: 'Bee Hat', price: 50, file: 'pixel-frame-0-4.png', type: 'hat'},
+        {id: 'blue_pants', name: 'Cool Jeans', price: 30, file: 'pixel-frame-0-5.png', type: 'body'},
+        {id: 'pink_skirt', name: 'Pink Skirt', price: 30, file: 'pixel-frame-0-6.png', type: 'body'},
+        {id: 'sweater', name: 'Purple Sweater', price: 45, file: 'pixel-frame-0-7.png', type: 'body'},
+        {id: 'green_scarf', name: 'Mint Scarf', price: 25, file: 'pixel-frame-0-8.png', type: 'body'}
     ];
 
-    // --- NAVIGATION ---
     function showTab(name, btn) {
         var pages = document.getElementsByClassName('page');
         for(var i=0; i<pages.length; i++) pages[i].className = 'page';
         var btns = document.getElementsByClassName('tab-btn');
         for(var i=0; i<btns.length; i++) btns[i].className = 'tab-btn';
-        
         document.getElementById('page-'+name).className = 'page active';
         btn.className = 'tab-btn active';
     }
 
-    // --- GOAL LOGIC ---
     function addGoal() {
         var input = document.getElementById('goal-in');
         if(!input.value) return;
@@ -183,48 +175,56 @@
         renderGoals();
     }
 
-    // --- SHOP & CLOSET LOGIC ---
     function handleItem(id) {
         var item = shopItems.filter(function(i){ return i.id === id; })[0];
         var ownedIdx = data.ownedItems.indexOf(id);
 
-        if(ownedIdx === -1) { // Buy
+        if(ownedIdx === -1) {
             if(data.bones >= item.price) {
                 data.bones -= item.price;
                 data.ownedItems.push(id);
             } else { alert("Not enough bones!"); }
-        } else { // Toggle Equip
-            data.equippedHat = (data.equippedHat === item.file) ? null : item.file;
+        } else {
+            // Updated to handle two separate slots
+            if(item.type === 'hat') {
+                data.equippedHat = (data.equippedHat === item.file) ? null : item.file;
+            } else {
+                data.equippedBody = (data.equippedBody === item.file) ? null : item.file;
+            }
         }
         updateUI();
         renderShop();
     }
 
-    // --- ADVENTURE LOGIC ---
     function goAdventure() {
         if(data.energy < 100 || data.isAway) return alert("Complete more goals!");
         data.isAway = true;
         data.energy = 0;
-        data.returnTime = Date.now() + (30 * 1000); // 30 seconds
-        
+        data.returnTime = Date.now() + (30 * 1000);
         document.getElementById('sprite-group').className = 'sprite-stack away walking';
         document.getElementById('timer-box').style.display = 'block';
         updateUI();
     }
 
-    // --- CORE UPDATES ---
     function updateUI() {
         document.getElementById('bone-txt').innerText = data.bones;
         document.getElementById('lvl-txt').innerText = data.lvl;
         document.getElementById('energy-bar').style.width = data.energy + "%";
         
+        // Update Hat Layer
         var hatLayer = document.getElementById('img-hat');
         if(data.equippedHat) {
             hatLayer.src = data.equippedHat;
             hatLayer.style.display = 'block';
-        } else {
-            hatLayer.style.display = 'none';
-        }
+        } else { hatLayer.style.display = 'none'; }
+
+        // Update Body Layer
+        var bodyLayer = document.getElementById('img-body');
+        if(data.equippedBody) {
+            bodyLayer.src = data.equippedBody;
+            bodyLayer.style.display = 'block';
+        } else { bodyLayer.style.display = 'none'; }
+
         save();
     }
 
@@ -244,9 +244,8 @@
         list.innerHTML = "";
         shopItems.forEach(function(item) {
             var isOwned = data.ownedItems.indexOf(item.id) !== -1;
-            var isEquipped = data.equippedHat === item.file;
+            var isEquipped = (data.equippedHat === item.file || data.equippedBody === item.file);
             var txt = isOwned ? (isEquipped ? "Unequip" : "Equip") : "Buy ("+item.price+"🦴)";
-            
             var div = document.createElement('div');
             div.className = "item-card";
             div.innerHTML = '<b>'+item.name+'</b><br><button class="btn '+(isOwned?'owned':'')+'" onclick="handleItem(\''+item.id+'\')">'+txt+'</button>';
@@ -254,7 +253,6 @@
         });
     }
 
-    // --- TIMER LOOP ---
     setInterval(function() {
         if(data.isAway) {
             var diff = Math.round((data.returnTime - Date.now()) / 1000);
@@ -263,7 +261,7 @@
                 data.lvl++;
                 document.getElementById('sprite-group').className = 'sprite-stack';
                 document.getElementById('timer-box').style.display = 'none';
-                alert("Your Corgi is back from the adventure!");
+                alert("Your Corgi is back!");
                 updateUI();
             } else {
                 document.getElementById('timer-txt').innerText = "00:" + (diff < 10 ? "0" : "") + diff;
@@ -275,13 +273,9 @@
     function load() {
         var saved = localStorage.getItem('corgiStore');
         if(saved) data = JSON.parse(saved);
-        if(data.isAway) { // Reset if they refreshed during adventure
-            data.isAway = false;
-            document.getElementById('sprite-group').className = 'sprite-stack';
-        }
+        if(data.isAway) data.isAway = false; 
         updateUI(); renderGoals(); renderShop();
     }
-
     window.onload = load;
 </script>
 </body>
