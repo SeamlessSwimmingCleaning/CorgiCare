@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Corgi Life</title>
     <style>
+        /* Retro Cozy Colors */
         :root {
             --bg: #fdf6e3;
             --border: #5d4037;
@@ -33,6 +34,7 @@
             font-size: 14px;
         }
 
+        /* LAYERED SPRITE SYSTEM */
         #world {
             height: 250px; background: #eee8d5;
             border-bottom: 4px solid var(--border);
@@ -50,18 +52,44 @@
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            image-rendering: pixelated;
+            image-rendering: pixelated; 
+        }
+
+        /* ADDED: Micro-pet Layer */
+        .pet-layer {
+            position: absolute;
+            bottom: 0;
+            right: -30px;
+            font-size: 24px;
+            z-index: 5;
+        }
+
+        /* ADDED: Speech Bubble */
+        #speech-bubble {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border: 2px solid var(--border);
+            padding: 5px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            display: none;
+            white-space: nowrap;
+            z-index: 100;
         }
 
         .walking { animation: bob 0.6s infinite; }
         @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
         .away { transform: translateX(300px); opacity: 0; }
 
+        /* UI Elements */
         .page { display: none; flex: 1; padding: 15px; overflow-y: auto; }
         .page.active { display: block; }
 
         nav { display: flex; height: 70px; border-top: 4px solid var(--border); background: #fff; }
-        .tab-btn { flex: 1; border: none; background: none; font-weight: bold; font-family: inherit; font-size: 12px; }
+        .tab-btn { flex: 1; border: none; background: none; font-weight: bold; font-family: inherit; font-size: 10px; }
         .tab-btn.active { background: #eee; border-bottom: 4px solid var(--accent); }
 
         .btn {
@@ -84,24 +112,30 @@
             padding: 10px; margin-bottom: 8px;
             display: flex; justify-content: space-between; align-items: center;
         }
+
+        /* ADDED: Pet Grid */
+        .pet-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+        .pet-box { border: 2px dashed var(--border); padding: 10px; text-align: center; background: white; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="device">
     <header>
-        <span>Lvl <span id="lvl-txt">1</span> Corgi</span>
+        <span>Lvl <span id="lvl-txt">1</span> Corgi (<span id="mood-txt">Happy</span>)</span>
         <span>🦴 <span id="bone-txt">0</span></span>
     </header>
 
     <div id="page-home" class="page active">
         <div id="world">
             <div id="sprite-group" class="sprite-stack">
-                <img id="img-base" src="pixel-frame-0-2.png" class="pixel-layer">
+                <div id="speech-bubble">Bark!</div>
+                <img id="img-base" src="pixil-frame-0-2.png" class="pixel-layer" onclick="bark()">
                 <img id="img-body" src="" class="pixel-layer" style="display:none;">
                 <img id="img-hat" src="" class="pixel-layer" style="display:none;">
+                <div id="visual-pet" class="pet-layer"></div>
             </div>
-            <div id="timer-box" style="display:none; position:absolute; bottom:10px; background:white; padding:5px; border:2px solid var(--border);">
+            <div id="timer-box" style="display:none; position:absolute; bottom:10px; background:white; padding:5px; border:2px solid var(--border); z-index:20;">
                 Exploring... <span id="timer-txt">00:30</span>
             </div>
         </div>
@@ -124,40 +158,53 @@
         <div id="shop-list"></div>
     </div>
 
+    <div id="page-pets" class="page">
+        <h3>Micro Pets</h3>
+        <div id="pet-list" class="pet-grid"></div>
+    </div>
+
     <nav>
         <button class="tab-btn active" onclick="showTab('home', this)">HOME</button>
         <button class="tab-btn" onclick="showTab('goals', this)">GOALS</button>
         <button class="tab-btn" onclick="showTab('shop', this)">SHOP</button>
+        <button class="tab-btn" onclick="showTab('pets', this)">PETS</button>
     </nav>
 </div>
 
 <script>
+    // --- GAME DATA ---
     var data = {
         bones: 20, energy: 0, lvl: 1,
         ownedItems: [], equippedHat: null, equippedBody: null,
         goals: [{id:1, text:"Brush Teeth"}],
-        isAway: false, returnTime: 0
+        isAway: false, returnTime: 0,
+        pets: [],
+        activePet: null
     };
 
-    // FIXED: Added missing commas and "type" category
+    // --- FIXED FILENAMES (pixil instead of pixel) ---
     var shopItems = [
-        {id: 'cool_hat', name: 'Top Hat', price: 15, file: 'pixel-frame-0-3.png', type: 'hat'},
-        {id: 'fancy_crown', name: 'Bee Hat', price: 50, file: 'pixel-frame-0-4.png', type: 'hat'},
-        {id: 'blue_pants', name: 'Cool Jeans', price: 30, file: 'pixel-frame-0-5.png', type: 'body'},
-        {id: 'pink_skirt', name: 'Pink Skirt', price: 30, file: 'pixel-frame-0-6.png', type: 'body'},
-        {id: 'sweater', name: 'Purple Sweater', price: 45, file: 'pixel-frame-0-7.png', type: 'body'},
-        {id: 'green_scarf', name: 'Mint Scarf', price: 25, file: 'pixel-frame-0-8.png', type: 'body'}
+        {id: 'cool_hat', name: 'Top Hat', price: 15, file: 'pixil-frame-0-3.png', type: 'hat'},
+        {id: 'fancy_crown', name: 'Bee Hat', price: 50, file: 'pixil-frame-0-4.png', type: 'hat'},
+        {id: 'blue_pants', name: 'Cool Jeans', price: 30, file: 'pixil-frame-0-5.png', type: 'body'},
+        {id: 'pink_skirt', name: 'Pink Skirt', price: 30, file: 'pixil-frame-0-6.png', type: 'body'},
+        {id: 'sweater', name: 'Purple Sweater', price: 45, file: 'pixil-frame-0-7.png', type: 'body'},
+        {id: 'green_scarf', name: 'Mint Scarf', price: 25, file: 'pixil-frame-0-8.png', type: 'body'}
     ];
 
+    // --- NAVIGATION ---
     function showTab(name, btn) {
         var pages = document.getElementsByClassName('page');
         for(var i=0; i<pages.length; i++) pages[i].className = 'page';
         var btns = document.getElementsByClassName('tab-btn');
         for(var i=0; i<btns.length; i++) btns[i].className = 'tab-btn';
+        
         document.getElementById('page-'+name).className = 'page active';
         btn.className = 'tab-btn active';
+        if(name === 'pets') renderPets();
     }
 
+    // --- GOAL LOGIC ---
     function addGoal() {
         var input = document.getElementById('goal-in');
         if(!input.value) return;
@@ -175,17 +222,17 @@
         renderGoals();
     }
 
+    // --- SHOP & CLOSET LOGIC ---
     function handleItem(id) {
         var item = shopItems.filter(function(i){ return i.id === id; })[0];
         var ownedIdx = data.ownedItems.indexOf(id);
 
-        if(ownedIdx === -1) {
+        if(ownedIdx === -1) { // Buy
             if(data.bones >= item.price) {
                 data.bones -= item.price;
                 data.ownedItems.push(id);
             } else { alert("Not enough bones!"); }
-        } else {
-            // Updated to handle two separate slots
+        } else { // Toggle Equip
             if(item.type === 'hat') {
                 data.equippedHat = (data.equippedHat === item.file) ? null : item.file;
             } else {
@@ -196,34 +243,70 @@
         renderShop();
     }
 
+    // --- ADVENTURE LOGIC ---
     function goAdventure() {
         if(data.energy < 100 || data.isAway) return alert("Complete more goals!");
         data.isAway = true;
         data.energy = 0;
-        data.returnTime = Date.now() + (30 * 1000);
+        data.returnTime = Date.now() + (30 * 1000); 
+        
         document.getElementById('sprite-group').className = 'sprite-stack away walking';
         document.getElementById('timer-box').style.display = 'block';
         updateUI();
     }
 
+    // --- MICRO PET LOGIC ---
+    function setPet(emoji) {
+        data.activePet = (data.activePet === emoji) ? null : emoji;
+        updateUI();
+        renderPets();
+    }
+
+    function renderPets() {
+        var list = document.getElementById('pet-list');
+        list.innerHTML = "";
+        data.pets.forEach(function(p) {
+            var div = document.createElement('div');
+            div.className = "pet-box";
+            if(data.activePet === p) div.style.background = "#859900";
+            div.innerHTML = p;
+            div.onclick = function() { setPet(p); };
+            list.appendChild(div);
+        });
+    }
+
+    // --- BARK LOGIC ---
+    function bark() {
+        var bubble = document.getElementById('speech-bubble');
+        var lines = ["Woof!", "Bork!", "Love u!", "Bones?", "Adventure!"];
+        bubble.innerText = lines[Math.floor(Math.random()*lines.length)];
+        bubble.style.display = 'block';
+        setTimeout(function(){ bubble.style.display = 'none'; }, 2000);
+    }
+
+    // --- CORE UPDATES ---
     function updateUI() {
         document.getElementById('bone-txt').innerText = data.bones;
         document.getElementById('lvl-txt').innerText = data.lvl;
         document.getElementById('energy-bar').style.width = data.energy + "%";
         
-        // Update Hat Layer
+        // FIXED: Base image source
+        document.getElementById('img-base').src = "pixil-frame-0-2.png";
+
         var hatLayer = document.getElementById('img-hat');
         if(data.equippedHat) {
             hatLayer.src = data.equippedHat;
             hatLayer.style.display = 'block';
         } else { hatLayer.style.display = 'none'; }
 
-        // Update Body Layer
         var bodyLayer = document.getElementById('img-body');
         if(data.equippedBody) {
             bodyLayer.src = data.equippedBody;
             bodyLayer.style.display = 'block';
         } else { bodyLayer.style.display = 'none'; }
+
+        document.getElementById('visual-pet').innerHTML = data.activePet || "";
+        document.getElementById('mood-txt').innerText = data.energy < 25 ? "Sleepy" : "Happy";
 
         save();
     }
@@ -246,6 +329,7 @@
             var isOwned = data.ownedItems.indexOf(item.id) !== -1;
             var isEquipped = (data.equippedHat === item.file || data.equippedBody === item.file);
             var txt = isOwned ? (isEquipped ? "Unequip" : "Equip") : "Buy ("+item.price+"🦴)";
+            
             var div = document.createElement('div');
             div.className = "item-card";
             div.innerHTML = '<b>'+item.name+'</b><br><button class="btn '+(isOwned?'owned':'')+'" onclick="handleItem(\''+item.id+'\')">'+txt+'</button>';
@@ -253,15 +337,26 @@
         });
     }
 
+    // --- TIMER LOOP ---
     setInterval(function() {
         if(data.isAway) {
             var diff = Math.round((data.returnTime - Date.now()) / 1000);
             if(diff <= 0) {
                 data.isAway = false;
                 data.lvl++;
+
+                // ADDED: Chance to find pet
+                if(Math.random() > 0.5) {
+                    var friends = ['🐱','🐸','🐹','🐰','🐨','🐥'];
+                    var found = friends[Math.floor(Math.random()*friends.length)];
+                    if(data.pets.indexOf(found) === -1) {
+                        data.pets.push(found);
+                        alert("Found a friend: " + found);
+                    }
+                }
+
                 document.getElementById('sprite-group').className = 'sprite-stack';
                 document.getElementById('timer-box').style.display = 'none';
-                alert("Your Corgi is back!");
                 updateUI();
             } else {
                 document.getElementById('timer-txt').innerText = "00:" + (diff < 10 ? "0" : "") + diff;
@@ -276,6 +371,7 @@
         if(data.isAway) data.isAway = false; 
         updateUI(); renderGoals(); renderShop();
     }
+
     window.onload = load;
 </script>
 </body>
