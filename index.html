@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -55,7 +55,20 @@
             image-rendering: pixelated; 
         }
 
-        /* ADDED: Micro-pet Layer */
+        /* ADDED: Alignment Fixes for Clothes */
+        #img-hat {
+            top: -5px;  /* Change this to move hat UP or DOWN */
+            left: 0px;  /* Change this to move hat LEFT or RIGHT */
+            z-index: 15;
+        }
+
+        #img-body {
+            top: 2px;   /* Change this to move shirt UP or DOWN */
+            left: 0px;  /* Change this to move shirt LEFT or RIGHT */
+            z-index: 12;
+        }
+
+        /* Micro-pet Layer */
         .pet-layer {
             position: absolute;
             bottom: 0;
@@ -64,7 +77,7 @@
             z-index: 5;
         }
 
-        /* ADDED: Speech Bubble */
+        /* Speech Bubble */
         #speech-bubble {
             position: absolute;
             top: -40px;
@@ -113,7 +126,7 @@
             display: flex; justify-content: space-between; align-items: center;
         }
 
-        /* ADDED: Pet Grid */
+        /* Pet Grid */
         .pet-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
         .pet-box { border: 2px dashed var(--border); padding: 10px; text-align: center; background: white; cursor: pointer; }
     </style>
@@ -182,7 +195,7 @@
         activePet: null
     };
 
-    // --- FIXED FILENAMES (pixil instead of pixel) ---
+    // --- FILENAMES FIXED TO 'pixil' ---
     var shopItems = [
         {id: 'cool_hat', name: 'Top Hat', price: 15, file: 'pixil-frame-0-3.png', type: 'hat'},
         {id: 'fancy_crown', name: 'Bee Hat', price: 50, file: 'pixil-frame-0-4.png', type: 'hat'},
@@ -192,7 +205,6 @@
         {id: 'green_scarf', name: 'Mint Scarf', price: 25, file: 'pixil-frame-0-8.png', type: 'body'}
     ];
 
-    // --- NAVIGATION ---
     function showTab(name, btn) {
         var pages = document.getElementsByClassName('page');
         for(var i=0; i<pages.length; i++) pages[i].className = 'page';
@@ -204,7 +216,6 @@
         if(name === 'pets') renderPets();
     }
 
-    // --- GOAL LOGIC ---
     function addGoal() {
         var input = document.getElementById('goal-in');
         if(!input.value) return;
@@ -222,17 +233,16 @@
         renderGoals();
     }
 
-    // --- SHOP & CLOSET LOGIC ---
     function handleItem(id) {
         var item = shopItems.filter(function(i){ return i.id === id; })[0];
         var ownedIdx = data.ownedItems.indexOf(id);
 
-        if(ownedIdx === -1) { // Buy
+        if(ownedIdx === -1) { 
             if(data.bones >= item.price) {
                 data.bones -= item.price;
                 data.ownedItems.push(id);
             } else { alert("Not enough bones!"); }
-        } else { // Toggle Equip
+        } else {
             if(item.type === 'hat') {
                 data.equippedHat = (data.equippedHat === item.file) ? null : item.file;
             } else {
@@ -243,19 +253,16 @@
         renderShop();
     }
 
-    // --- ADVENTURE LOGIC ---
     function goAdventure() {
         if(data.energy < 100 || data.isAway) return alert("Complete more goals!");
         data.isAway = true;
         data.energy = 0;
         data.returnTime = Date.now() + (30 * 1000); 
-        
         document.getElementById('sprite-group').className = 'sprite-stack away walking';
         document.getElementById('timer-box').style.display = 'block';
         updateUI();
     }
 
-    // --- MICRO PET LOGIC ---
     function setPet(emoji) {
         data.activePet = (data.activePet === emoji) ? null : emoji;
         updateUI();
@@ -275,7 +282,6 @@
         });
     }
 
-    // --- BARK LOGIC ---
     function bark() {
         var bubble = document.getElementById('speech-bubble');
         var lines = ["Woof!", "Bork!", "Love u!", "Bones?", "Adventure!"];
@@ -284,13 +290,12 @@
         setTimeout(function(){ bubble.style.display = 'none'; }, 2000);
     }
 
-    // --- CORE UPDATES ---
     function updateUI() {
         document.getElementById('bone-txt').innerText = data.bones;
         document.getElementById('lvl-txt').innerText = data.lvl;
         document.getElementById('energy-bar').style.width = data.energy + "%";
         
-        // FIXED: Base image source
+        // Ensure base is pixil-frame
         document.getElementById('img-base').src = "pixil-frame-0-2.png";
 
         var hatLayer = document.getElementById('img-hat');
@@ -329,7 +334,6 @@
             var isOwned = data.ownedItems.indexOf(item.id) !== -1;
             var isEquipped = (data.equippedHat === item.file || data.equippedBody === item.file);
             var txt = isOwned ? (isEquipped ? "Unequip" : "Equip") : "Buy ("+item.price+"🦴)";
-            
             var div = document.createElement('div');
             div.className = "item-card";
             div.innerHTML = '<b>'+item.name+'</b><br><button class="btn '+(isOwned?'owned':'')+'" onclick="handleItem(\''+item.id+'\')">'+txt+'</button>';
@@ -337,15 +341,12 @@
         });
     }
 
-    // --- TIMER LOOP ---
     setInterval(function() {
         if(data.isAway) {
             var diff = Math.round((data.returnTime - Date.now()) / 1000);
             if(diff <= 0) {
                 data.isAway = false;
                 data.lvl++;
-
-                // ADDED: Chance to find pet
                 if(Math.random() > 0.5) {
                     var friends = ['🐱','🐸','🐹','🐰','🐨','🐥'];
                     var found = friends[Math.floor(Math.random()*friends.length)];
@@ -354,7 +355,6 @@
                         alert("Found a friend: " + found);
                     }
                 }
-
                 document.getElementById('sprite-group').className = 'sprite-stack';
                 document.getElementById('timer-box').style.display = 'none';
                 updateUI();
@@ -371,7 +371,6 @@
         if(data.isAway) data.isAway = false; 
         updateUI(); renderGoals(); renderShop();
     }
-
     window.onload = load;
 </script>
 </body>
